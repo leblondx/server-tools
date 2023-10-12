@@ -22,10 +22,7 @@ class AuditlogtHTTPSession(models.Model):
         for httpsession in self:
             create_date = fields.Datetime.from_string(httpsession.create_date)
             tz_create_date = fields.Datetime.context_timestamp(httpsession, create_date)
-            httpsession.display_name = "{} ({})".format(
-                httpsession.user_id and httpsession.user_id.name or "?",
-                fields.Datetime.to_string(tz_create_date),
-            )
+            httpsession.display_name = f'{httpsession.user_id and httpsession.user_id.name or "?"} ({fields.Datetime.to_string(tz_create_date)})'
 
     def name_get(self):
         return [(session.id, session.display_name) for session in self]
@@ -40,12 +37,11 @@ class AuditlogtHTTPSession(models.Model):
         """
         if not request:
             return False
-        httpsession = request.session
-        if httpsession:
-            existing_session = self.search(
-                [("name", "=", httpsession.sid), ("user_id", "=", request.uid)], limit=1
-            )
-            if existing_session:
+        if httpsession := request.session:
+            if existing_session := self.search(
+                [("name", "=", httpsession.sid), ("user_id", "=", request.uid)],
+                limit=1,
+            ):
                 return existing_session.id
             vals = {"name": httpsession.sid, "user_id": request.uid}
             httpsession.auditlog_http_session_id = self.create(vals).id

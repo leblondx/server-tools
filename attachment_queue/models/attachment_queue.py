@@ -151,5 +151,5 @@ class AttachmentQueue(models.Model):
         """
         Manually set to done
         """
-        message = "Manually set to done by %s" % self.env.user.name
+        message = f"Manually set to done by {self.env.user.name}"
         self.write({"state_message": message, "state": "done"})

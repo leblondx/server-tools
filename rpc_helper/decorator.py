@@ -13,7 +13,7 @@ def disable_rpc(*config):
     """
 
     def _decorator(target):
-        target._disable_rpc = ("all",) if len(config) == 0 else config
+        target._disable_rpc = ("all",) if not config else config
         return target
 
     return _decorator

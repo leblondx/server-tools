@@ -155,8 +155,7 @@ _original_session_store = http.root.__class__.session_store
 
 @lazy_property
 def session_store(self):
-    session_db_uri = os.environ.get("SESSION_DB_URI")
-    if session_db_uri:
+    if session_db_uri := os.environ.get("SESSION_DB_URI"):
         _logger.debug("HTTP sessions stored in: db")
         return PGSessionStore(session_db_uri, session_class=http.Session)
     return _original_session_store.__get__(self, self.__class__)

@@ -38,8 +38,7 @@ class IrModuleAuthor(models.Model):
 
     @api.model
     def _get_or_create(self, name):
-        authors = self.search([("name", "=", name)])
-        if authors:
+        if authors := self.search([("name", "=", name)]):
             return authors[0]
         else:
             return self.create({"name": name})

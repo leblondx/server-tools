@@ -12,8 +12,7 @@ class Base(models.AbstractModel):
 
     def sudo_tech(self, raise_if_missing=False):
         self_sudoer = self
-        tech_user = self.env.user.company_id.user_tech_id
-        if tech_user:
+        if tech_user := self.env.user.company_id.user_tech_id:
             self_sudoer = self.with_user(tech_user.id)
         elif raise_if_missing:
             raise UserError(

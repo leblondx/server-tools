@@ -27,9 +27,7 @@ class AuditlogHTTPRequest(models.Model):
         for httprequest in self:
             create_date = fields.Datetime.from_string(httprequest.create_date)
             tz_create_date = fields.Datetime.context_timestamp(httprequest, create_date)
-            httprequest.display_name = "{} ({})".format(
-                httprequest.name or "?", fields.Datetime.to_string(tz_create_date)
-            )
+            httprequest.display_name = f'{httprequest.name or "?"} ({fields.Datetime.to_string(tz_create_date)})'
 
     def name_get(self):
         return [(request.id, request.display_name) for request in self]
@@ -45,8 +43,7 @@ class AuditlogHTTPRequest(models.Model):
         if not request:
             return False
         http_session_model = self.env["auditlog.http.session"]
-        httprequest = request.httprequest
-        if httprequest:
+        if httprequest := request.httprequest:
             if hasattr(httprequest, "auditlog_http_request_id"):
                 # Verify existence. Could have been rolled back after a
                 # concurrency error

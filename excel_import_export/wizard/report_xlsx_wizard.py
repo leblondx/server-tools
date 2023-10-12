@@ -15,8 +15,7 @@ class ReportXLSXWizard(models.TransientModel):
     def action_report(self):
         action_id = self._context.get("report_action_id")
         action = self.env["ir.actions.report"].browse(action_id)
-        res = action.read()[0]
-        return res
+        return action.read()[0]
 
     def safe_domain(self, str_domain):
         return ast.literal_eval(str_domain or "[]")

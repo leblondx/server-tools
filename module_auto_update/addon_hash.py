@@ -7,10 +7,7 @@ from fnmatch import fnmatch
 
 
 def _fnmatch(filename, patterns):
-    for pattern in patterns:
-        if fnmatch(filename, pattern):
-            return True
-    return False
+    return any(fnmatch(filename, pattern) for pattern in patterns)
 
 
 def _walk(top, exclude_patterns, keep_langs):

@@ -28,6 +28,23 @@ class TimeWindowMixin(models.AbstractModel):
     @api.constrains("time_window_start", "time_window_end", "time_window_weekday_ids")
     def check_window_no_overlaps(self):
         weekdays_field = self._fields["time_window_weekday_ids"]
+        # here we use a plain SQL query to benefit of the numrange
+        # function available in PostgresSQL
+        # (http://www.postgresql.org/docs/current/static/rangetypes.html)
+        SQL = """
+                SELECT
+                    id
+                FROM
+                    %(table)s w
+                    join %(relation)s as d
+                    on d.%(relation_window_fkey)s = w.id
+                WHERE
+                    NUMRANGE(w.time_window_start::numeric,
+                        w.time_window_end::numeric) &&
+                            NUMRANGE(%(start)s::numeric, %(end)s::numeric)
+                    AND w.id != %(window_id)s
+                    AND d.%(relation_week_day_fkey)s in %(weekday_ids)s
+                    AND w.%(check_field)s = %(check_field_id)s;"""
         for record in self:
             if record.time_window_start > record.time_window_end:
                 raise ValidationError(
@@ -43,23 +60,6 @@ class TimeWindowMixin(models.AbstractModel):
                 )
             if not record.time_window_weekday_ids:
                 raise ValidationError(_("At least one time.weekday is required"))
-            # here we use a plain SQL query to benefit of the numrange
-            # function available in PostgresSQL
-            # (http://www.postgresql.org/docs/current/static/rangetypes.html)
-            SQL = """
-                SELECT
-                    id
-                FROM
-                    %(table)s w
-                    join %(relation)s as d
-                    on d.%(relation_window_fkey)s = w.id
-                WHERE
-                    NUMRANGE(w.time_window_start::numeric,
-                        w.time_window_end::numeric) &&
-                            NUMRANGE(%(start)s::numeric, %(end)s::numeric)
-                    AND w.id != %(window_id)s
-                    AND d.%(relation_week_day_fkey)s in %(weekday_ids)s
-                    AND w.%(check_field)s = %(check_field_id)s;"""
             self.env.cr.execute(
                 SQL,
                 dict(
@@ -75,8 +75,7 @@ class TimeWindowMixin(models.AbstractModel):
                     check_field_id=record[self._time_window_overlap_check_field].id,
                 ),
             )
-            res = self.env.cr.fetchall()
-            if res:
+            if res := self.env.cr.fetchall():
                 other = self.browse(res[0][0])
                 raise ValidationError(
                     _("%(record_name)s overlaps %(other_name)s")

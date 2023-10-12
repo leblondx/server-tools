@@ -37,20 +37,17 @@ def _get_add_smart_search(self):
     "Add Smart Search on search views"
     model = self.env["ir.model"].search([("model", "=", str(self._name))])
     # Run only if module is installed
-    if hasattr(model, "add_smart_search"):
-        return model.add_smart_search
-    return False
+    return model.add_smart_search if hasattr(model, "add_smart_search") else False
 
 
 @tools.ormcache(skiparg=0)
 def _get_name_search_domain(self):
     "Add Smart Search on search views"
-    name_search_domain = (
-        self.env["ir.model"]
+    if (
+        name_search_domain := self.env["ir.model"]
         .search([("model", "=", str(self._name))])
         .name_search_domain
-    )
-    if name_search_domain:
+    ):
         return literal_eval(name_search_domain)
     return []
 
@@ -167,8 +164,7 @@ class Base(models.AbstractModel):
     def _get_view(self, view_id=None, view_type="form", **options):
         arch, view = super()._get_view(view_id=view_id, view_type=view_type, **options)
         if view_type == "search" and _get_add_smart_search(self.sudo()):
-            placeholders = arch.xpath("//search/field")
-            if placeholders:
+            if placeholders := arch.xpath("//search/field"):
                 placeholder = placeholders[0]
             else:
                 placeholder = arch.xpath("//search")[0]
@@ -205,13 +201,11 @@ class IrModel(models.Model):
                     " try to avoid them if possible"
                 )
             # rec.smart_search_warning = msg
-            if msgs:
-                rec.smart_search_warning = (
-                    "<p>In case of performance issues we recommend to review "
-                    "these suggestions: <ul>%s</ul></p>"
-                ) % "".join(["<li>%s</li>" % x for x in msgs])
-            else:
-                rec.smart_search_warning = False
+            rec.smart_search_warning = (
+                f'<p>In case of performance issues we recommend to review these suggestions: <ul>{"".join([f"<li>{x}</li>" for x in msgs])}</ul></p>'
+                if msgs
+                else False
+            )
 
     @api.constrains("name_search_ids", "name_search_domain", "add_smart_search")
     def update_search_wo_restart(self):

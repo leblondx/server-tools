@@ -44,7 +44,7 @@ class TestParser(TransactionCase):
         cls.lang = Langs.search([("code", "=", "fr_FR")])
         cls.lang.active = True
         category = cls.env["res.partner.category"].create({"name": "name"})
-        cls.translated_target = "name_{}".format(cls.lang.code)
+        cls.translated_target = f"name_{cls.lang.code}"
         category.with_context(lang=cls.lang.code).write({"name": cls.translated_target})
         cls.global_resolver = cls.env["ir.exports.resolver"].create(
             {"python_code": "value['X'] = 'X'; result = value", "type": "global"}
@@ -63,7 +63,7 @@ class TestParser(TransactionCase):
                         0,
                         {
                             "name": "name",
-                            "target": "name:{}".format(cls.translated_target),
+                            "target": f"name:{cls.translated_target}",
                             "lang_id": cls.lang.id,
                         },
                     ),
@@ -199,8 +199,7 @@ class TestParser(TransactionCase):
     def test_json_export_callable_parser(self):
         self.partner.__class__.jsonify_custom = jsonify_custom
         parser = [
-            # callable subparser
-            ("name", lambda rec, fname: rec[fname] + " rocks!"),
+            ("name", lambda rec, fname: f"{rec[fname]} rocks!"),
             ("name:custom", "jsonify_custom"),
         ]
         expected_json = {

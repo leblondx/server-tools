@@ -9,13 +9,13 @@ class AttachmentQueueReschedule(models.TransientModel):
     _description = "Wizard to reschedule a selection of attachments"
 
     def _default_attachment_ids(self):
-        res = False
         context = self.env.context
-        if context.get("active_model") == "attachment.queue" and context.get(
-            "active_ids"
-        ):
-            res = context["active_ids"]
-        return res
+        return (
+            context["active_ids"]
+            if context.get("active_model") == "attachment.queue"
+            and context.get("active_ids")
+            else False
+        )
 
     attachment_ids = fields.Many2many(
         comodel_name="attachment.queue",

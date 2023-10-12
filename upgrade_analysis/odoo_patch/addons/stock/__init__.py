@@ -7,5 +7,5 @@ class PreInitHookPatch(OdooPatch):
     target = stock
     method_names = ["pre_init_hook"]
 
-    def pre_init_hook(cr):
+    def pre_init_hook(self):
         """Don't unlink stock data on reinstall"""

@@ -50,8 +50,7 @@ class PurchaseTest(models.Model):
 
     @api.constrains("ignore_exception", "line_ids", "state")
     def test_purchase_check_exception(self):
-        orders = self.filtered(lambda s: s.state == "purchase")
-        if orders:
+        if orders := self.filtered(lambda s: s.state == "purchase"):
             orders._check_exception()
 
     def button_approve(self, force=False):

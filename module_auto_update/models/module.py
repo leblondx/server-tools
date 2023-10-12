@@ -34,15 +34,9 @@ def ensure_module_state(env, modules, state):
         "SELECT name FROM ir_module_module " "WHERE id IN %s AND state != %s",
         (tuple(modules.ids), state),
     )
-    names = [r[0] for r in env.cr.fetchall()]
-    if names:
+    if names := [r[0] for r in env.cr.fetchall()]:
         raise FailedUpgradeError(
-            "The following modules should be in state '%s' "
-            "at this stage: %s. Bailing out for safety."
-            % (
-                state,
-                ",".join(names),
-            ),
+            f"""The following modules should be in state '{state}' at this stage: {",".join(names)}. Bailing out for safety."""
         )
 
 
@@ -60,16 +54,15 @@ class Module(models.Model):
         keep_langs = self.env["res.lang"].search([]).mapped("code")
 
         module_path = get_module_path(self.name)
-        if module_path and os.path.isdir(module_path):
-            checksum_dir = addon_hash(
+        return (
+            addon_hash(
                 module_path,
                 exclude_patterns,
                 keep_langs,
             )
-        else:
-            checksum_dir = False
-
-        return checksum_dir
+            if module_path and os.path.isdir(module_path)
+            else False
+        )
 
     @api.model
     def _get_saved_checksums(self):
@@ -84,10 +77,10 @@ class Module(models.Model):
 
     @api.model
     def _save_installed_checksums(self):
-        checksums = {}
         installed_modules = self.search([("state", "=", "installed")])
-        for module in installed_modules:
-            checksums[module.name] = module._get_checksum_dir()
+        checksums = {
+            module.name: module._get_checksum_dir() for module in installed_modules
+        }
         self._save_checksums(checksums)
 
     @api.model
@@ -178,12 +171,9 @@ class Module(models.Model):
         self._save_installed_checksums()
         self.env.cr.commit()  # pylint: disable=invalid-commit
 
-        partial_modules = self._get_modules_partially_installed()
-        if partial_modules:
+        if partial_modules := self._get_modules_partially_installed():
             raise IncompleteUpgradeError(
-                "Checksum upgrade successful "
-                "but incomplete for the following modules: %s"
-                % ",".join(partial_modules.mapped("name"))
+                f'Checksum upgrade successful but incomplete for the following modules: {",".join(partial_modules.mapped("name"))}'
             )
 
         _logger.info("Checksum upgrade complete.")

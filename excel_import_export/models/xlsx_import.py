@@ -34,11 +34,11 @@ class XLSXImport(models.AbstractModel):
             "model": False,
         }
         if model:
-            eval_context.update({"model": self.env[model]})
+            eval_context["model"] = self.env[model]
         if value:
             if isinstance(value, str):  # Remove non Ord 128 character
                 value = "".join([i if ord(i) < 128 else " " for i in value])
-            eval_context.update({"value": value})
+            eval_context["value"] = value
         return eval_context
 
     @api.model
@@ -49,7 +49,7 @@ class XLSXImport(models.AbstractModel):
         if not xml_id or (record.id in xml_id and xml_id[record.id] == ""):
             ModelData.create(
                 {
-                    "name": "{}_{}".format(record._table, record.id),
+                    "name": f"{record._table}_{record.id}",
                     "module": "__excel_import_export__",
                     "model": record._name,
                     "res_id": record.id,
@@ -113,8 +113,7 @@ class XLSXImport(models.AbstractModel):
                 test_rows[idx] = r_types
         empty_list = filter(lambda y: all(i == 0 for i in y[1]), test_rows.items())
         empty_rows = list(map(lambda z: z[0], empty_list))
-        next_empty_row = empty_rows and min(empty_rows) or max_end_row
-        return next_empty_row
+        return empty_rows and min(empty_rows) or max_end_row
 
     @api.model
     def _get_line_vals(self, st, worksheet, model, line_field):
@@ -129,9 +128,9 @@ class XLSXImport(models.AbstractModel):
                 x_field, val_eval_cond = co.get_field_condition(field)
                 row, col = co.pos2idx(rc)
                 new_line_field, _x = co.get_line_max(line_field)
-                out_field = "{}/{}".format(new_line_field, x_field)
+                out_field = f"{new_line_field}/{x_field}"
                 field_type = self._get_field_type(model, out_field)
-                vals.update({out_field: []})
+                vals[out_field] = []
                 for idx in range(row, end_row):
                     value = co._get_cell_value(st.cell(idx, col), field_type=field_type)
                     eval_context = self.get_eval_context(model=model, value=value)
@@ -183,11 +182,8 @@ class XLSXImport(models.AbstractModel):
                     # Columns, i.e., line_ids/field_id
                     out_st.write(0, col_idx, field)
                     header_fields.append(field)
-                    # Data
-                    i = 1
-                    for value in vals[field]:
+                    for i, value in enumerate(vals[field], start=1):
                         out_st.write(i, col_idx, value)
-                        i += 1
                     col_idx += 1
 
     @api.model
@@ -196,7 +192,6 @@ class XLSXImport(models.AbstractModel):
         if not data_dict:
             return
         try:
-            header_fields = []
             model = record._name
             decoded_data = base64.decodebytes(import_file)
             wb = xlrd.open_workbook(file_contents=decoded_data)
@@ -205,11 +200,11 @@ class XLSXImport(models.AbstractModel):
             xml_id = (
                 record
                 and self.get_external_id(record)
-                or "{}.{}".format("__excel_import_export__", uuid.uuid4())
+                or f"__excel_import_export__.{uuid.uuid4()}"
             )
             out_st.write(0, 0, "id")  # id and xml_id on first column
             out_st.write(1, 0, xml_id)
-            header_fields.append("id")
+            header_fields = ["id"]
             # Process on all worksheets
             self._process_worksheet(wb, out_wb, out_st, model, data_dict, header_fields)
             # --

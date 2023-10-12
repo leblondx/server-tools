@@ -7,5 +7,5 @@ class PreInitHookPatch(OdooPatch):
     target = mrp
     method_names = ["_pre_init_mrp"]
 
-    def _pre_init_mrp(cr):
+    def _pre_init_mrp(self):
         """Don't try to create an existing column on reinstall"""

@@ -214,11 +214,11 @@ class AuditlogRule(models.Model):
         for rule in self:
             model_model = self.env[rule.model_id.model or rule.model_model]
             for method in ["create", "read", "write", "unlink"]:
-                if getattr(rule, "log_%s" % method) and hasattr(
+                if getattr(rule, f"log_{method}") and hasattr(
                     getattr(model_model, method), "origin"
                 ):
                     model_model._revert_method(method)
-                    delattr(type(model_model), "auditlog_ruled_%s" % method)
+                    delattr(type(model_model), f"auditlog_ruled_{method}")
                     updated = True
         if updated:
             modules.registry.Registry(self.env.cr.dbname).signal_changes()
@@ -261,11 +261,11 @@ class AuditlogRule(models.Model):
         By default it is all stored fields only, but you can
         override this.
         """
-        return list(
+        return [
             n
             for n, f in model._fields.items()
             if (not f.compute and not f.related) or f.store
-        )
+        ]
 
     def _make_create(self):
         """Instanciate a create method that log its calls."""
@@ -525,7 +525,12 @@ class AuditlogRule(models.Model):
                 self._create_log_line_on_create(
                     log, diff.added(), new_values, fields_to_exclude
                 )
-            elif method == "read":
+            elif (
+                method == "read"
+                or method != "write"
+                and method == "unlink"
+                and auditlog_rule.capture_record
+            ):
                 self._create_log_line_on_read(
                     log,
                     list(old_values.get(res_id, EMPTY_DICT).keys()),
@@ -535,13 +540,6 @@ class AuditlogRule(models.Model):
             elif method == "write":
                 self._create_log_line_on_write(
                     log, diff.changed(), old_values, new_values, fields_to_exclude
-                )
-            elif method == "unlink" and auditlog_rule.capture_record:
-                self._create_log_line_on_read(
-                    log,
-                    list(old_values.get(res_id, EMPTY_DICT).keys()),
-                    old_values,
-                    fields_to_exclude,
                 )
 
     def _get_field(self, model, field_name):
@@ -554,16 +552,13 @@ class AuditlogRule(models.Model):
             field_model = self.env["ir.model.fields"].sudo()
             all_model_ids = [model.id]
             all_model_ids.extend(model.inherited_model_ids.ids)
-            field = field_model.search(
+            if field := field_model.search(
                 [("model_id", "in", all_model_ids), ("name", "=", field_name)]
-            )
-            # The field can be a dummy one, like 'in_group_X' on 'res.users'
-            # As such we can't log it (field_id is required to create a log)
-            if not field:
-                cache[model.model][field_name] = False
-            else:
+            ):
                 field_data = field.read(load="_classic_write")[0]
                 cache[model.model][field_name] = field_data
+            else:
+                cache[model.model][field_name] = False
         return cache[model.model][field_name]
 
     def _create_log_line_on_read(
@@ -575,9 +570,7 @@ class AuditlogRule(models.Model):
         for field_name in fields_list:
             if field_name in fields_to_exclude:
                 continue
-            field = self._get_field(log.model_id, field_name)
-            # not all fields have an ir.models.field entry (ie. related fields)
-            if field:
+            if field := self._get_field(log.model_id, field_name):
                 log_vals = self._prepare_log_line_vals_on_read(log, field, read_values)
                 log_line_model.create(log_vals)
 
@@ -609,9 +602,7 @@ class AuditlogRule(models.Model):
         for field_name in fields_list:
             if field_name in fields_to_exclude:
                 continue
-            field = self._get_field(log.model_id, field_name)
-            # not all fields have an ir.models.field entry (ie. related fields)
-            if field:
+            if field := self._get_field(log.model_id, field_name):
                 log_vals = self._prepare_log_line_vals_on_write(
                     log, field, old_values, new_values
                 )
@@ -643,8 +634,7 @@ class AuditlogRule(models.Model):
                 old_value_text.extend(existing_values)
             # Deleted resources will have a 'DELETED' text representation
             deleted_ids = set(vals["old_value"]) - set(existing_ids)
-            for deleted_id in deleted_ids:
-                old_value_text.append((deleted_id, "DELETED"))
+            old_value_text.extend((deleted_id, "DELETED") for deleted_id in deleted_ids)
             vals["old_value_text"] = old_value_text
             new_value_text = (
                 self.env[field["relation"]].browse(vals["new_value"]).name_get()
@@ -661,9 +651,7 @@ class AuditlogRule(models.Model):
         for field_name in fields_list:
             if field_name in fields_to_exclude:
                 continue
-            field = self._get_field(log.model_id, field_name)
-            # not all fields have an ir.models.field entry (ie. related fields)
-            if field:
+            if field := self._get_field(log.model_id, field_name):
                 log_vals = self._prepare_log_line_vals_on_create(log, field, new_values)
                 log_line_model.create(log_vals)
 
@@ -693,9 +681,7 @@ class AuditlogRule(models.Model):
         act_window_model = self.env["ir.actions.act_window"]
         for rule in self:
             # Create a shortcut to view logs
-            domain = "[('model_id', '=', %s), ('res_id', '=', active_id)]" % (
-                rule.model_id.id
-            )
+            domain = f"[('model_id', '=', {rule.model_id.id}), ('res_id', '=', active_id)]"
             vals = {
                 "name": _("View logs"),
                 "res_model": "auditlog.log",
@@ -711,9 +697,7 @@ class AuditlogRule(models.Model):
         # Revert patched methods
         self._revert_methods()
         for rule in self:
-            # Remove the shortcut to view logs
-            act_window = rule.action_id
-            if act_window:
+            if act_window := rule.action_id:
                 act_window.unlink()
         return self.write({"state": "draft"})
 

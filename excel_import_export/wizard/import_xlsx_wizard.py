@@ -51,16 +51,13 @@ class ImportXLSXWizard(models.TransientModel):
         record = self.env[res_model].browse(res_id)
         messages = []
         valid = True
-        # For all import, only allow import in draft state (for documents)
-        import_states = self._context.get("template_import_states", [])
-        if import_states:  # states specified in context, test this
+        if import_states := self._context.get("template_import_states", []):
             if "state" in record and record["state"] not in import_states:
                 messages.append(_("Document must be in %s states") % import_states)
                 valid = False
-        else:  # no specific state specified, test with draft
-            if "state" in record and "draft" not in record["state"]:  # not in
-                messages.append(_("Document must be in draft state"))
-                valid = False
+        elif "state" in record and "draft" not in record["state"]:  # not in
+            messages.append(_("Document must be in draft state"))
+            valid = False
         # Context testing
         if self._context.get("template_context", False):
             template_context = self._context["template_context"]

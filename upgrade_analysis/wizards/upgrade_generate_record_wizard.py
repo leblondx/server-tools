@@ -28,11 +28,9 @@ class GenerateWizard(models.TransientModel):
         # Truncate the records table
         self.env.cr.execute("TRUNCATE upgrade_attribute, upgrade_record;")
 
-        # Check of all the modules are correctly installed
-        modules = self.env["ir.module.module"].search(
+        if modules := self.env["ir.module.module"].search(
             [("state", "in", ["to install", "to upgrade"])]
-        )
-        if modules:
+        ):
             raise UserError(
                 _("Cannot seem to install or upgrade modules %s")
                 % (", ".join([module.name for module in modules]))

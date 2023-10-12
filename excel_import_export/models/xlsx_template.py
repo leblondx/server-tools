@@ -125,9 +125,7 @@ class XLSXTemplate(models.Model):
 
     def _compute_result_field(self):
         for rec in self:
-            rec.result_field = (
-                ("x_%s_results" % rec.id) if rec.result_model_id else False
-            )
+            rec.result_field = f"x_{rec.id}_results" if rec.result_model_id else False
 
     @api.constrains("redirect_action", "res_model")
     def _check_action_model(self):
@@ -365,12 +363,11 @@ self['{}'] = self.env['{}'].search(self.safe_domain(self.domain))
     def _compute_output_instruction(self):
         """From database, compute back to dictionary"""
         for rec in self:
-            inst_dict = {}
             prev_sheet = False
             prev_row = False
             # Export Instruction
             itype = "__EXPORT__"
-            inst_dict[itype] = {}
+            inst_dict = {itype: {}}
             for line in rec.export_ids:
                 if line.section_type == "sheet":
                     sheet = co.isinteger(line.sheet) and int(line.sheet) or line.sheet
@@ -381,9 +378,9 @@ self['{}'] = self.env['{}'].search(self.safe_domain(self.domain))
                 if line.section_type in ("head", "row"):
                     row_field = line.row_field
                     if line.section_type == "row" and line.is_cont:
-                        row_field = "_CONT_%s" % row_field
+                        row_field = f"_CONT_{row_field}"
                     if line.section_type == "row" and line.is_extend:
-                        row_field = "_EXTEND_%s" % row_field
+                        row_field = f"_EXTEND_{row_field}"
                     row_dict = {row_field: {}}
                     inst_dict[itype][prev_sheet].update(row_dict)
                     prev_row = row_field
@@ -412,7 +409,7 @@ self['{}'] = self.env['{}'].search(self.safe_domain(self.domain))
                 if line.section_type in ("head", "row"):
                     row_field = line.row_field
                     if line.section_type == "row" and line.no_delete:
-                        row_field = "_NODEL_%s" % row_field
+                        row_field = f"_NODEL_{row_field}"
                     row_dict = {row_field: {}}
                     inst_dict[itype][prev_sheet].update(row_dict)
                     prev_row = row_field
@@ -510,10 +507,7 @@ self['{}'] = self.env['{}'].search(self.safe_domain(self.domain))
         }
         action = self.env["ir.actions.act_window"].create(vals)
         # Create menu
-        vals = {
-            "name": self.name,
-            "action": "{},{}".format(action._name, action.id),
-        }
+        vals = {"name": self.name, "action": f"{action._name},{action.id}"}
         menu = self.env["ir.ui.menu"].create(vals)
         self.report_menu_id = menu
 
@@ -622,7 +616,7 @@ class XLSXTemplateExport(models.Model):
                     "field_name": field_name,
                     "field_cond": "${%s}" % (field_cond or ""),
                     "style": "#{%s}" % (style or ""),
-                    "style_cond": "#?%s?" % (style_cond or ""),
+                    "style_cond": f'#?{style_cond or ""}?',
                     "is_sum": func == "sum" and True or False,
                 }
             )

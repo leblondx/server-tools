@@ -22,8 +22,7 @@ def get_record_id(cr, module, model, field, mode):
         "field = %s AND mode = %s AND type = %s",
         (module, model, field, mode, "field"),
     )
-    record = cr.fetchone()
-    if record:
+    if record := cr.fetchone():
         return record[0]
     cr.execute(
         "INSERT INTO upgrade_record "
@@ -108,15 +107,11 @@ def isfunction(field):
 
 
 def isproperty(field):
-    if field.company_dependent:
-        return "property"
-    return ""
+    return "property" if field.company_dependent else ""
 
 
 def isrelated(field):
-    if field.related:
-        return "related"
-    return ""
+    return "related" if field.related else ""
 
 
 def _get_relation(field):
@@ -211,16 +206,12 @@ def log_xml_id(cr, module, xml_id):
     if not table_exists(cr, "upgrade_record"):
         return
     if "." not in xml_id:
-        xml_id = "{}.{}".format(module, xml_id)
+        xml_id = f"{module}.{xml_id}"
     cr.execute(
         "SELECT model FROM ir_model_data " "WHERE module = %s AND name = %s",
         xml_id.split("."),
     )
-    record = cr.fetchone()
-    if not record:
-        _logger.warning("Cannot find xml_id %s", xml_id)
-        return
-    else:
+    if record := cr.fetchone():
         cr.execute(
             "SELECT id FROM upgrade_record "
             "WHERE module=%s AND model=%s AND name=%s AND type=%s",
@@ -233,3 +224,7 @@ def log_xml_id(cr, module, xml_id):
                 "values(NOW() AT TIME ZONE 'UTC', %s, %s, %s, %s)",
                 (module, record[0], xml_id, "xmlid"),
             )
+
+    else:
+        _logger.warning("Cannot find xml_id %s", xml_id)
+        return

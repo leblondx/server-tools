@@ -108,10 +108,8 @@ class IrModuleModule(models.Model):
         exclude_files = [x.strip() for x in val.split(",") if x.strip()]
 
         for module in self:
-            _logger.info("Analysing Code for module %s ..." % (module.name))
+            _logger.info(f"Analysing Code for module {module.name} ...")
 
-            # Update Authors, based on manifest key
-            authors = []
             if module.author and module.author[0] == "[":
                 author_txt_list = safe_eval(module.author)
             else:
@@ -119,9 +117,10 @@ class IrModuleModule(models.Model):
 
             author_txt_list = [x.strip() for x in author_txt_list]
             author_txt_list = [x for x in author_txt_list if x]
-            for author_txt in author_txt_list:
-                authors.append(IrModuleAuthor._get_or_create(author_txt))
-
+            authors = [
+                IrModuleAuthor._get_or_create(author_txt)
+                for author_txt in author_txt_list
+            ]
             author_ids = [x.id for x in authors]
             module.author_ids = author_ids
 

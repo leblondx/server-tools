@@ -19,7 +19,7 @@ def get_request_info(request):
     """
     urlparts = urllib.parse.urlsplit(request.url)
     return {
-        "url": "{}://{}{}".format(urlparts.scheme, urlparts.netloc, urlparts.path),
+        "url": f"{urlparts.scheme}://{urlparts.netloc}{urlparts.path}",
         "query_string": urlparts.query,
         "method": request.method,
         "headers": dict(datastructures.EnvironHeaders(request.environ)),
@@ -49,7 +49,7 @@ def get_extra_context(request):
             },
         }
         if request.httprequest:
-            ctx.update({"request": get_request_info(request.httprequest)})
+            ctx["request"] = get_request_info(request.httprequest)
     return ctx
 
 
@@ -77,24 +77,23 @@ def fetch_git_sha(path, head=None):
         head_path = os.path.join(path, ".git", "HEAD")
         if not os.path.exists(head_path):
             raise InvalidGitRepository(
-                "Cannot identify HEAD for git repository at %s" % (path,)
+                f"Cannot identify HEAD for git repository at {path}"
             )
 
         with open(head_path, "r") as fp:
             head = text_type(fp.read()).strip()
 
-        if head.startswith("ref: "):
-            head = head[5:]
-            revision_file = os.path.join(path, ".git", *head.split("/"))
-        else:
+        if not head.startswith("ref: "):
             return head
+        head = head[5:]
+        revision_file = os.path.join(path, ".git", *head.split("/"))
     else:
         revision_file = os.path.join(path, ".git", "refs", "heads", head)
 
     if not os.path.exists(revision_file):
         if not os.path.exists(os.path.join(path, ".git")):
             raise InvalidGitRepository(
-                "%s does not seem to be the root of a git repository" % (path,)
+                f"{path} does not seem to be the root of a git repository"
             )
 
         # Check for our .git/packed-refs' file since a `git gc` may have run
@@ -113,7 +112,7 @@ def fetch_git_sha(path, head=None):
                             return text_type(revision)
 
         raise InvalidGitRepository(
-            'Unable to find ref to head "%s" in repository' % (head,)
+            f'Unable to find ref to head "{head}" in repository'
         )
 
     with open(revision_file) as fh:

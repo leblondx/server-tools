@@ -25,6 +25,4 @@ def _rpc_allowed(recordset, method):
         config = (
             recordset.env["ir.model"]._get_rpc_config(recordset._name).get("disable")
         )
-    if config is None:
-        return True
-    return "all" not in config and method not in config
+    return True if config is None else "all" not in config and method not in config

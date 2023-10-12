@@ -26,8 +26,8 @@ def adjust_cell_formula(value, k):
                 j = value.index(")", i)
                 val = value[i + 2 : j]
                 col, row = split_row_col(val)
-                new_val = "{}{}".format(col, row + k)
-                value = value.replace("?(%s)" % val, new_val)
+                new_val = f"{col}{row + k}"
+                value = value.replace(f"?({val})", new_val)
     return value
 
 
@@ -88,7 +88,7 @@ def get_field_style_cond(field):
         cond = field[i + 2 : j]
         try:
             if cond or cond == "":
-                return (field.replace("#?%s?" % cond, ""), cond)
+                return field.replace(f"#?{cond}?", ""), cond
         except Exception:
             return (field, False)
     return (field, False)
@@ -106,12 +106,12 @@ def fill_cell_style(field, field_style, styles):
                 % {"value": value, "key": key}
             )
         cell_style = styles[key][value]
-        if key == "font":
-            field.font = cell_style
-        if key == "fill":
-            field.fill = cell_style
         if key == "align":
             field.alignment = cell_style
+        elif key == "fill":
+            field.fill = cell_style
+        elif key == "font":
+            field.font = cell_style
         if key == "style":
             if value == "text":
                 try:
@@ -143,8 +143,7 @@ def get_groupby(line_field):
     if line_field and "[" in line_field and "]" in line_field:
         i = line_field.index("[")
         j = line_field.index("]")
-        groupby = literal_eval(line_field[i : j + 1])
-        return groupby
+        return literal_eval(line_field[i : j + 1])
     return False
 
 
@@ -158,11 +157,9 @@ def split_row_col(pos):
 
 def openpyxl_get_sheet_by_name(book, name):
     """Get sheet by name for openpyxl"""
-    i = 0
-    for sheetname in book.sheetnames:
+    for i, sheetname in enumerate(book.sheetnames):
         if sheetname == name:
             return book.worksheets[i]
-        i += 1
     raise ValidationError(_("'%s' sheet not found") % (name,))
 
 
@@ -211,10 +208,10 @@ def str_to_number(input_val):
             if isdatetime(input_val):
                 return parse(input_val)
             elif isinteger(input_val):
-                if not (len(input_val) > 1 and input_val[:1] == "0"):
+                if len(input_val) <= 1 or input_val[:1] != "0":
                     return int(input_val)
             elif isfloat(input_val):
-                if not (input_val.find(".") > 2 and input_val[:1] == "0"):
+                if input_val.find(".") <= 2 or input_val[:1] != "0":
                     return float(input_val)
     return input_val
 
@@ -223,9 +220,7 @@ def csv_from_excel(excel_content, delimiter, quote):
     wb = xlrd.open_workbook(file_contents=excel_content)
     sh = wb.sheet_by_index(0)
     content = StringIO()
-    quoting = csv.QUOTE_ALL
-    if not quote:
-        quoting = csv.QUOTE_NONE
+    quoting = csv.QUOTE_NONE if not quote else csv.QUOTE_ALL
     if delimiter == " " and quoting == csv.QUOTE_NONE:
         quoting = csv.QUOTE_MINIMAL
     wr = csv.writer(content, delimiter=delimiter, quoting=quoting)
@@ -243,8 +238,7 @@ def csv_from_excel(excel_content, delimiter, quote):
             row.append(x)
         wr.writerow(row)
     content.seek(0)  # Set index to 0, and start reading
-    out_file = content.getvalue().encode("utf-8")
-    return out_file
+    return content.getvalue().encode("utf-8")
 
 
 def pos2idx(pos):
@@ -263,11 +257,11 @@ def _get_cell_value(cell, field_type=False):
     """If Odoo's field type is known, convert to valid string for import,
     if not know, just get value  as is"""
     value = False
-    datemode = 0  # From book.datemode, but we fix it for simplicity
     if field_type in ["date", "datetime"]:
         ctype = xlrd.sheet.ctype_text.get(cell.ctype, "unknown type")
         if ctype in ("xldate", "number"):
             is_datetime = cell.value % 1 != 0.0
+            datemode = 0  # From book.datemode, but we fix it for simplicity
             time_tuple = xlrd.xldate_as_tuple(cell.value, datemode)
             date = dt(*time_tuple)
             value = (
@@ -279,13 +273,13 @@ def _get_cell_value(cell, field_type=False):
             value = cell.value
     elif field_type in ["integer", "float"]:
         value_str = str(cell.value).strip().replace(",", "")
-        if len(value_str) == 0:
+        if not value_str:
             value = ""
         elif value_str.replace(".", "", 1).isdigit():  # Is number
-            if field_type == "integer":
-                value = int(float(value_str))
-            elif field_type == "float":
+            if field_type == "float":
                 value = float(value_str)
+            elif field_type == "integer":
+                value = int(float(value_str))
         else:  # Is string, no conversion
             value = value_str
     elif field_type in ["many2one"]:
@@ -308,28 +302,26 @@ def _get_cell_value(cell, field_type=False):
 
 
 def _add_column(column_name, column_value, file_txt):
-    i = 0
     txt_lines = []
-    for line in file_txt.split("\n"):
-        if line and i == 0:
-            line = '"' + str(column_name) + '",' + line
-        elif line:
-            line = '"' + str(column_value) + '",' + line
+    for i, line in enumerate(file_txt.split("\n")):
+        if line:
+            if i == 0:
+                line = f'"{str(column_name)}",{line}'
+            else:
+                line = f'"{str(column_value)}",{line}'
         txt_lines.append(line)
-        i += 1
     file_txt = "\n".join(txt_lines)
     return file_txt
 
 
 def _add_id_column(file_txt):
-    i = 0
     txt_lines = []
-    for line in file_txt.split("\n"):
-        if line and i == 0:
-            line = '"id",' + line
-        elif line:
-            line = f"__excel_import_export__.{uuid.uuid4()},{line}"
+    for i, line in enumerate(file_txt.split("\n")):
+        if line:
+            if i == 0:
+                line = f'"id",{line}'
+            else:
+                line = f"__excel_import_export__.{uuid.uuid4()},{line}"
         txt_lines.append(line)
-        i += 1
     file_txt = "\n".join(txt_lines)
     return file_txt

@@ -81,7 +81,7 @@ class UpgradeRecord(models.Model):
                     rec.model_type = "transient"
                 elif model._auto:
                     rec.model_type = ""
-                elif not model._auto and model._abstract:
+                elif model._abstract:
                     rec.model_type = "abstract"
                 else:
                     rec.model_type = "sql_view"

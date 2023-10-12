@@ -29,7 +29,7 @@ class XLSXExport(models.AbstractModel):
 
     @api.model
     def get_eval_context(self, model, record, value):
-        eval_context = {
+        return {
             "float_compare": float_compare,
             "datetime": dt,
             "date": date,
@@ -39,7 +39,6 @@ class XLSXExport(models.AbstractModel):
             "env": self.env,
             "context": self._context,
         }
-        return eval_context
 
     @api.model
     def _get_line_vals(self, record, line_field, fields):
@@ -68,18 +67,17 @@ class XLSXExport(models.AbstractModel):
             temp_field, style_cond = co.get_field_style_cond(temp_field)
             raw_field, aggre_func = co.get_field_aggregation(temp_field)
             # Dict of all special conditions
-            field_cond_dict.update({field: eval_cond})
-            aggre_func_dict.update({field: aggre_func})
-            field_style_dict.update({field: field_style})
-            style_cond_dict.update({field: style_cond})
+            field_cond_dict[field] = eval_cond
+            aggre_func_dict[field] = aggre_func
+            field_style_dict[field] = field_style
+            style_cond_dict[field] = style_cond
             # --
             pair_fields.append((field, raw_field))
         for line in lines:
             for field in pair_fields:  # (field, raw_field)
                 value = self._get_field_data(field[1], line)
-                eval_cond = field_cond_dict[field[0]]
                 eval_context = self.get_eval_context(line._name, line, value)
-                if eval_cond:
+                if eval_cond := field_cond_dict[field[0]]:
                     value = safe_eval(eval_cond, eval_context)
                 # style w/Cond takes priority
                 style_cond = style_cond_dict[field[0]]
@@ -99,14 +97,12 @@ class XLSXExport(models.AbstractModel):
         for i in range(style_cond.count("#{")):
             i += 1
             field, style = co.get_field_style(field)
-            styles.update({i: style})
+            styles[i] = style
             style_cond = style_cond.replace("#{%s}" % style, str(i))
         if not styles:
             return False
         res = safe_eval(style_cond, eval_context)
-        if res is None or res is False:
-            return res
-        return styles[res]
+        return res if res is None or res is False else styles[res]
 
     @api.model
     def _fill_workbook_data(self, workbook, record, data_dict):
@@ -159,17 +155,16 @@ class XLSXExport(models.AbstractModel):
     def _fill_head(self, ws, st, record):
         for rc, field in ws.get("_HEAD_", {}).items():
             tmp_field, eval_cond = co.get_field_condition(field)
-            eval_cond = eval_cond or 'value or ""'
             tmp_field, field_style = co.get_field_style(tmp_field)
             tmp_field, style_cond = co.get_field_style_cond(tmp_field)
             value = tmp_field and self._get_field_data(tmp_field, record)
             # Eval
             eval_context = self.get_eval_context(record._name, record, value)
-            if eval_cond:
+            if eval_cond := eval_cond or 'value or ""':
                 value = safe_eval(eval_cond, eval_context)
             if value is not None:
                 st[rc] = value
-            fc = not style_cond and True or safe_eval(style_cond, eval_context)
+            fc = True if not style_cond else safe_eval(style_cond, eval_context)
             if field_style and fc:  # has style and pass style_cond
                 styles = self.env["xlsx.styles"].get_openpyxl_styles()
                 co.fill_cell_style(st[rc], field_style, styles)
@@ -194,32 +189,30 @@ class XLSXExport(models.AbstractModel):
                     cont_set = cont_row + 1
                 if is_cont:
                     row = cont_set
-                    rc = "{}{}".format(col, cont_set)
-                i = 0
+                    rc = f"{col}{cont_set}"
                 new_row = 0
                 new_rc = False
-                row_count = len(vals[field])
                 # Insert rows to preserve total line
                 if is_extend and not rows_inserted:
                     rows_inserted = True
+                    row_count = len(vals[field])
                     st.insert_rows(row + 1, row_count - 1)
                 # --
-                for (row_val, style) in vals[field]:
+                for i, (row_val, style) in enumerate(vals[field]):
                     new_row = row + i
-                    new_rc = "{}{}".format(col, new_row)
+                    new_rc = f"{col}{new_row}"
                     row_val = co.adjust_cell_formula(row_val, i)
                     if row_val not in ("None", None):
                         st[new_rc] = co.str_to_number(row_val)
                     if style:
                         styles = self.env["xlsx.styles"].get_openpyxl_styles()
                         co.fill_cell_style(st[new_rc], style, styles)
-                    i += 1
                 # Add footer line if at least one field have sum
                 f = func.get(field, False)
                 if f and new_row > 0:
                     new_row += 1
-                    f_rc = "{}{}".format(col, new_row)
-                    st[f_rc] = "={}({}:{})".format(f, rc, new_rc)
+                    f_rc = f"{col}{new_row}"
+                    st[f_rc] = f"={f}({rc}:{new_rc})"
                     styles = self.env["xlsx.styles"].get_openpyxl_styles()
                     co.fill_cell_style(st[f_rc], style, styles)
                 cont_row = cont_row < new_row and new_row or cont_row
@@ -241,15 +234,14 @@ class XLSXExport(models.AbstractModel):
         ConfParam = self.env["ir.config_parameter"].sudo()
         ptemp = ConfParam.get_param("path_temp_file") or "/tmp"
         stamp = dt.utcnow().strftime("%H%M%S%f")[:-3]
-        ftemp = "{}/temp{}.xlsx".format(ptemp, stamp)
+        ftemp = f"{ptemp}/temp{stamp}.xlsx"
         # Start working with workbook
         records = res_model and self.env[res_model].browse(res_ids) or False
         outputs = []
         for record in records:
-            f = open(ftemp, "wb")
-            f.write(decoded_data)
-            f.seek(0)
-            f.close()
+            with open(ftemp, "wb") as f:
+                f.write(decoded_data)
+                f.seek(0)
             # Workbook created, temp file removed
             wb = load_workbook(ftemp)
             os.remove(ftemp)
@@ -264,7 +256,7 @@ class XLSXExport(models.AbstractModel):
             else:
                 fname = out_name.replace(" ", "").replace("/", "")
                 ts = fields.Datetime.context_timestamp(self, dt.now())
-                out_name = "{}_{}".format(fname, ts.strftime("%Y%m%d_%H%M%S"))
+                out_name = f'{fname}_{ts.strftime("%Y%m%d_%H%M%S")}'
             if not out_name or len(out_name) == 0:
                 out_name = "noname"
             out_ext = "xlsx"
@@ -273,7 +265,7 @@ class XLSXExport(models.AbstractModel):
                 delimiter = template.csv_delimiter
                 out_file = co.csv_from_excel(out_file, delimiter, template.csv_quote)
                 out_ext = template.csv_extension
-            outputs.append((out_file, "{}.{}".format(out_name, out_ext)))
+            outputs.append((out_file, f"{out_name}.{out_ext}"))
         # If outputs > 1 files, zip it
         if len(outputs) > 1:
             zip_buffer = BytesIO()

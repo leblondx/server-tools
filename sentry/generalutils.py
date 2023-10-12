@@ -19,9 +19,7 @@ def is_namedtuple(value):
     if not isinstance(value, tuple):
         return False
     f = getattr(type(value), "_fields", None)
-    if not isinstance(f, tuple):
-        return False
-    return all(type(n) == str for n in f)
+    return False if not isinstance(f, tuple) else all(type(n) == str for n in f)
 
 
 def iteritems(d, **kw):

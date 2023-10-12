@@ -56,11 +56,7 @@ class SanitizeKeysProcessor(object):
             item = text_type(item)
 
         item = item.lower()
-        for key in self.sanitize_keys:
-            if key in item:
-                # store mask as a fixed length for security
-                return self.MASK
-        return value
+        return next((self.MASK for key in self.sanitize_keys if key in item), value)
 
     def filter_stacktrace(self, data):
         for frame in data.get("frames", []):
@@ -80,11 +76,7 @@ class SanitizeKeysProcessor(object):
             if isinstance(data[n], string_types()) and "=" in data[n]:
                 # at this point we've assumed it's a standard HTTP query
                 # or cookie
-                if n == "cookies":
-                    delimiter = ";"
-                else:
-                    delimiter = "&"
-
+                delimiter = ";" if n == "cookies" else "&"
                 data[n] = self._sanitize_keyvals(data[n], delimiter)
             else:
                 data[n] = varmap(self.sanitize, data[n])

@@ -46,7 +46,7 @@ def before_send(event, hint):
         try:
             module_name = hint["log_record"].msg.__module__
             class_name = hint["log_record"].msg.__class__.__name__
-            qualified_name = module_name + "." + class_name
+            qualified_name = f"{module_name}.{class_name}"
         except AttributeError:
             qualified_name = "not found"
 
@@ -99,7 +99,7 @@ def initialize_sentry(config):
         )
     options = {}
     for option in const.get_sentry_options():
-        value = config.get("sentry_%s" % option.key, option.default)
+        value = config.get(f"sentry_{option.key}", option.default)
         if isinstance(option.converter, abc.Callable):
             value = option.converter(value)
         options[option.key] = value

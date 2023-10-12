@@ -60,10 +60,7 @@ class TrgmIndex(models.Model):
         if extension is None:
             return "missing"
 
-        if extension[1] is None:
-            return "uninstalled"
-
-        return "installed"
+        return "uninstalled" if extension[1] is None else "installed"
 
     def _is_postgres_superuser(self):
         self.env.cr.execute("SHOW is_superuser;")
@@ -100,10 +97,7 @@ class TrgmIndex(models.Model):
         return res
 
     def get_not_used_index(self, index_name, table_name, inc=1):
-        if inc > 1:
-            new_index_name = index_name + str(inc)
-        else:
-            new_index_name = index_name
+        new_index_name = index_name + str(inc) if inc > 1 else index_name
         self.env.cr.execute(
             """
             SELECT tablename, indexname
@@ -114,10 +108,11 @@ class TrgmIndex(models.Model):
         )
 
         indexes = self.env.cr.fetchone()
-        if indexes is not None and indexes[0] == table_name:
-            return True, index_name
-        elif indexes is not None:
-            return self.get_not_used_index(index_name, table_name, inc + 1)
+        if indexes is not None:
+            if indexes[0] == table_name:
+                return True, index_name
+            else:
+                return self.get_not_used_index(index_name, table_name, inc + 1)
 
         return False, new_index_name
 
@@ -132,7 +127,7 @@ class TrgmIndex(models.Model):
         table_name = self.env[self.field_id.model_id.model]._table
         column_name = self.field_id.name
         index_type = self.index_type
-        index_name = "{}_{}_idx".format(column_name, index_type)
+        index_name = f"{column_name}_{index_type}_idx"
         index_exists, index_name = self.get_not_used_index(index_name, table_name)
 
         if not index_exists:

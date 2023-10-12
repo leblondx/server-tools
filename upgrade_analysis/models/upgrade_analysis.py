@@ -67,8 +67,9 @@ class UpgradeAnalysis(models.Model):
         """
         res = config.get("upgrade_path", False)
         if not res:
-            module_path = get_module_path("openupgrade_scripts", display_warning=False)
-            if module_path:
+            if module_path := get_module_path(
+                "openupgrade_scripts", display_warning=False
+            ):
                 res = os.path.join(module_path, "scripts")
         self.upgrade_path = res
 
@@ -248,8 +249,9 @@ class UpgradeAnalysis(models.Model):
                 # no need to log in full log the merged/renamed modules
                 continue
             if self.write_files:
-                error = self._write_file(key, modules[key].installed_version, contents)
-                if error:
+                if error := self._write_file(
+                    key, modules[key].installed_version, contents
+                ):
                     general_log += error
                     general_log += contents
             else:
@@ -267,13 +269,13 @@ class UpgradeAnalysis(models.Model):
         try:
             self.generate_noupdate_changes()
         except Exception as e:
-            _logger.exception("Error generating noupdate changes: %s" % e)
+            _logger.exception(f"Error generating noupdate changes: {e}")
             general_log += "ERROR: error when generating noupdate changes: %s\n" % e
 
         try:
             self.generate_module_coverage_file(no_changes_modules)
         except Exception as e:
-            _logger.exception("Error generating module coverage file: %s" % e)
+            _logger.exception(f"Error generating module coverage file: {e}")
             general_log += "ERROR: error when generating module coverage file: %s\n" % e
 
         self.write(
@@ -291,7 +293,7 @@ class UpgradeAnalysis(models.Model):
             return res
         for child in element:
             if "name" in child.attrib:
-                key = "./{}[@name='{}']".format(child.tag, child.attrib["name"])
+                key = f"""./{child.tag}[@name='{child.attrib["name"]}']"""
                 res[key] = child
         return res
 
@@ -301,9 +303,7 @@ class UpgradeAnalysis(models.Model):
             return element.attrib["eval"]
         if "ref" in element.attrib.keys():
             return element.attrib["ref"]
-        if not len(element):
-            return element.text
-        return etree.tostring(element)
+        return element.text if not len(element) else etree.tostring(element)
 
     def _get_xml_diff(
         self, remote_update, remote_noupdate, local_update, local_noupdate
@@ -317,11 +317,7 @@ class UpgradeAnalysis(models.Model):
             elif xml_id in remote_noupdate:
                 remote_record = remote_noupdate[xml_id]
 
-            if "." in xml_id:
-                module_xmlid = xml_id.split(".", 1)[0]
-            else:
-                module_xmlid = ""
-
+            module_xmlid = xml_id.split(".", 1)[0] if "." in xml_id else ""
             if remote_record is None and not module_xmlid:
                 continue
 
@@ -384,7 +380,7 @@ class UpgradeAnalysis(models.Model):
     def _update_node(target, source):
         for element in source:
             if "name" in element.attrib:
-                query = "./{}[@name='{}']".format(element.tag, element.attrib["name"])
+                query = f"""./{element.tag}[@name='{element.attrib["name"]}']"""
             else:
                 # query = "./{}".format(element.tag)
                 continue
@@ -393,23 +389,19 @@ class UpgradeAnalysis(models.Model):
             target.append(element)
 
     @classmethod
-    def _process_data_node(
-        self, data_node, records_update, records_noupdate, module_name
-    ):
+    def _process_data_node(cls, data_node, records_update, records_noupdate, module_name):
         noupdate = nodeattr2bool(data_node, "noupdate", False)
         for record in data_node.xpath("./record") + data_node.xpath("./template"):
-            self._process_record_node(
+            cls._process_record_node(
                 record, noupdate, records_update, records_noupdate, module_name
             )
 
     @classmethod
-    def _process_record_node(
-        self, record, noupdate, records_update, records_noupdate, module_name
-    ):
+    def _process_record_node(cls, record, noupdate, records_update, records_noupdate, module_name):
         xml_id = record.get("id")
         if not xml_id:
             return
-        if "." in xml_id and xml_id.startswith(module_name + "."):
+        if "." in xml_id and xml_id.startswith(f"{module_name}."):
             xml_id = xml_id[len(module_name) + 1 :]
         for records in records_noupdate, records_update:
             # records can occur multiple times in the same module
@@ -419,14 +411,14 @@ class UpgradeAnalysis(models.Model):
                 # with the same tag). The order processing the
                 # various directives from the manifest is
                 # important here
-                self._update_node(records[xml_id], record)
+                cls._update_node(records[xml_id], record)
                 break
         else:
             target_dict = records_noupdate if noupdate else records_update
             target_dict[xml_id] = record
 
     @classmethod
-    def _parse_files(self, xml_files, module_name):
+    def _parse_files(cls, xml_files, module_name):
         records_update = {}
         records_noupdate = {}
         parser = etree.XMLParser(
@@ -452,11 +444,9 @@ class UpgradeAnalysis(models.Model):
                 )
             for node in root_node:
                 if node.tag == "data":
-                    self._process_data_node(
-                        node, records_update, records_noupdate, module_name
-                    )
+                    cls._process_data_node(node, records_update, records_noupdate, module_name)
                 elif node.tag == "record":
-                    self._process_record_node(
+                    cls._process_record_node(
                         node,
                         root_node_noupdate,
                         records_update,
@@ -498,10 +488,9 @@ class UpgradeAnalysis(models.Model):
                 continue
             local_files = local_record_obj.get_xml_records(local_module)
             local_update, local_noupdate = self._parse_files(local_files, local_module)
-            diff = self._get_xml_diff(
+            if diff := self._get_xml_diff(
                 remote_update, remote_noupdate, local_update, local_noupdate
-            )
-            if diff:
+            ):
                 module = self.env["ir.module.module"].search(
                     [("name", "=", local_module)]
                 )
@@ -530,12 +519,11 @@ class UpgradeAnalysis(models.Model):
             )
         )
 
+        connection = self.config_id.get_connection()
         module_domain = [
             ("state", "=", "installed"),
             ("name", "not in", ["upgrade_analysis", "openupgrade_records"]),
         ]
-
-        connection = self.config_id.get_connection()
         all_local_modules = (
             self.env["ir.module.module"].search(module_domain).mapped("name")
         )
@@ -553,25 +541,18 @@ class UpgradeAnalysis(models.Model):
         for module in all_modules:
             status = ""
             if module in all_local_modules and module in all_remote_modules:
-                module_description = " %s" % module
+                module_description = f" {module}"
             elif module in all_local_modules:
-                module_description = " |new| %s" % module
+                module_description = f" |new| {module}"
             else:
-                module_description = " |del| %s" % module
+                module_description = f" |del| {module}"
 
             if module in compare.apriori.merged_modules:
-                status = "Merged into %s. " % compare.apriori.merged_modules[module]
+                status = f"Merged into {compare.apriori.merged_modules[module]}. "
             elif module in compare.apriori.renamed_modules:
-                status = "Renamed to %s. " % compare.apriori.renamed_modules[module]
+                status = f"Renamed to {compare.apriori.renamed_modules[module]}. "
             elif module in compare.apriori.renamed_modules.values():
-                status = (
-                    "Renamed from %s. "
-                    % [
-                        x
-                        for x in compare.apriori.renamed_modules
-                        if compare.apriori.renamed_modules[x] == module
-                    ][0]
-                )
+                status = f"Renamed from {[x for x in compare.apriori.renamed_modules if compare.apriori.renamed_modules[x] == module][0]}. "
             elif module in no_changes_modules:
                 status += "No DB layout changes. "
             module_descriptions[module_description.ljust(49, " ")] = status.ljust(
@@ -584,13 +565,9 @@ class UpgradeAnalysis(models.Model):
             module_descriptions=module_descriptions,
         )
 
-        file_name = "modules{}-{}.rst".format(
-            start_version.replace(".", ""),
-            end_version.replace(".", ""),
-        )
+        file_name = f'modules{start_version.replace(".", "")}-{end_version.replace(".", "")}.rst'
 
         file_path = os.path.join(module_coverage_file_folder, file_name)
-        f = open(file_path, "w+")
-        f.write(rendered_text)
-        f.close()
+        with open(file_path, "w+") as f:
+            f.write(rendered_text)
         return True

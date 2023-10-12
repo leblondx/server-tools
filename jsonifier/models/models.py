@@ -157,7 +157,7 @@ class Base(models.AbstractModel):
             parser = convert_simple_to_full_parser(parser)
         resolver = parser.get("resolver")
 
-        results = [{} for record in self]
+        results = [{} for _ in self]
         parsers = {False: parser["fields"]} if "fields" in parser else parser["langs"]
         for lang in parsers:
             translate = lang or parser.get("language_agnostic")

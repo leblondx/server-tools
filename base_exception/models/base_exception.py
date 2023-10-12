@@ -52,25 +52,11 @@ class BaseExceptionModel(models.AbstractModel):
     @api.depends("exception_ids", "ignore_exception")
     def _compute_exceptions_summary(self):
         for rec in self:
-            if rec.exception_ids and not rec.ignore_exception:
-                rec.exceptions_summary = "<ul>%s</ul>" % "".join(
-                    [
-                        "<li>%s: <i>%s</i> <b>%s<b></li>"
-                        % tuple(
-                            map(
-                                html.escape,
-                                (
-                                    e.name,
-                                    e.description or "",
-                                    _("(Blocking exception)") if e.is_blocking else "",
-                                ),
-                            )
-                        )
-                        for e in rec.exception_ids
-                    ]
-                )
-            else:
-                rec.exceptions_summary = False
+            rec.exceptions_summary = (
+                f'<ul>{"".join(["<li>%s: <i>%s</i> <b>%s<b></li>" % tuple(map(html.escape, (e.name, e.description or "", _("(Blocking exception)") if e.is_blocking else ""))) for e in rec.exception_ids])}</ul>'
+                if rec.exception_ids and not rec.ignore_exception
+                else False
+            )
 
     def _popup_exceptions(self):
         """This method is used to show the popup action view.
@@ -82,15 +68,11 @@ class BaseExceptionModel(models.AbstractModel):
             for field, value in action.items()
             if field in record._get_readable_fields()
         }
-        action.update(
-            {
-                "context": {
-                    "active_id": self.ids[0],
-                    "active_ids": self.ids,
-                    "active_model": self._name,
-                }
-            }
-        )
+        action["context"] = {
+            "active_id": self.ids[0],
+            "active_ids": self.ids,
+            "active_model": self._name,
+        }
         return action
 
     @api.model

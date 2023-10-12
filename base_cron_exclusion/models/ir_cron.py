@@ -45,8 +45,7 @@ class IrCron(models.Model):
                 GROUP BY cron_id;""",
             (job_id, job_id),
         )
-        locked_ids = tuple(row[0] for row in lock_cr.fetchall())
-        if locked_ids:
+        if locked_ids := tuple(row[0] for row in lock_cr.fetchall()):
             lock_cr.execute(
                 """SELECT *
                                FROM ir_cron
@@ -67,5 +66,5 @@ class IrCron(models.Model):
             res = super(IrCron, cls)._process_job(db, cron_cr, job)
         finally:
             locked_crons.close()
-            _logger.debug("released blocks for cron job %s" % job["cron_name"])
+            _logger.debug(f'released blocks for cron job {job["cron_name"]}')
         return res

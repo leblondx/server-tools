@@ -64,8 +64,7 @@ class IrUiView(models.Model):
     def _iter_inheritance_specs(self, spec):
         if spec.tag == "data":
             for child in spec:
-                for node, handler in self._iter_inheritance_specs(child):
-                    yield node, handler
+                yield from self._iter_inheritance_specs(child)
             return
         if spec.get("position") == "attributes":
             if all(not c.get("operation") for c in spec):
@@ -81,16 +80,18 @@ class IrUiView(models.Model):
     @api.model
     def _get_inheritance_handler(self, node):
         handler = super().apply_inheritance_specs
-        if hasattr(self, "inheritance_handler_%s" % node.tag):
-            handler = getattr(self, "inheritance_handler_%s" % node.tag)
+        if hasattr(self, f"inheritance_handler_{node.tag}"):
+            handler = getattr(self, f"inheritance_handler_{node.tag}")
         return handler
 
     @api.model
     def _get_inheritance_handler_attributes(self, node):
         handler = super().apply_inheritance_specs
-        if hasattr(self, "inheritance_handler_attributes_%s" % node.get("operation")):
+        if hasattr(
+            self, f'inheritance_handler_attributes_{node.get("operation")}'
+        ):
             handler = getattr(
-                self, "inheritance_handler_attributes_%s" % node.get("operation")
+                self, f'inheritance_handler_attributes_{node.get("operation")}'
             )
         return handler
 
